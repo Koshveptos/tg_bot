@@ -12,7 +12,7 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Берем токен из переменных окружения
-BOT_TOKEN = os.getenv('BOT_TOKEN')  # для локального теста можно временно вписать
+BOT_TOKEN = os.getenv('1458726905:AAGdb2BxeoFjQanpbWee0jn0z2SlVFHdH14')  # для локального теста можно временно вписать
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Настройки для Railway
