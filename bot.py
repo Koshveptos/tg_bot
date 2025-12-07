@@ -1,25 +1,24 @@
 import os
+import time
 import telebot
 from telebot import types
 import sqlite3
 import random
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask
+from flask import Flask, request
 
-# Инициализация бота через переменную окружения
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-#bot = telebot.TeleBot(BOT_TOKEN)
-#bot = telebot.TeleBot("1458726905:AAGdb2BxeoFjQanpbWee0jn0z2SlVFHdH14")
-markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-# Flask приложение для веб-сервера (обязательно для Railway)
+# Инициализация Flask
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Bot is running!"
+# Берем токен из переменных окружения
+BOT_TOKEN = os.getenv('BOT_TOKEN')  # для локального теста можно временно вписать
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Ваш основной код бота (нужно немного адаптировать)
+# Настройки для Railway
+WEBHOOK_URL = os.getenv('RAILWAY_STATIC_URL', '') + '/webhook'
+IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
+
 
 url = 'https://absurdopedia.net/wiki/Абсурдоцитатник:Цитаты_Джейсона_Стетхема'
 page = requests.get(url)
@@ -480,23 +479,23 @@ def process_user_guess(message):
         bot.send_message(message.chat.id, "Введи нормальное число!")
         bot.register_next_step_handler(message, process_user_guess)
 
-@bot.message_handler(commands = ['start'])
-def send_start_msg(message):
-    add_user(message.from_user.id)
+# @bot.message_handler(commands = ['start'])
+# def send_start_msg(message):
+#     add_user(message.from_user.id)
 
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn1 = types.KeyboardButton("📈 Цитата Стетхема")
-    btn2 = types.KeyboardButton("⚙️ Статистика")
-    btn3 = types.KeyboardButton("🎮 Бот угадывает")
-    btn4 = types.KeyboardButton("🎮 Я угадываю")
-    markup.add(btn1, btn2)
-    markup.add(btn3, btn4)
+#     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+#     btn1 = types.KeyboardButton("📈 Цитата Стетхема")
+#     btn2 = types.KeyboardButton("⚙️ Статистика")
+#     btn3 = types.KeyboardButton("🎮 Бот угадывает")
+#     btn4 = types.KeyboardButton("🎮 Я угадываю")
+#     markup.add(btn1, btn2)
+#     markup.add(btn3, btn4)
 
-    bot.send_message(
-        message.chat.id,
-        f"Привет, {message.from_user.first_name}! Выбери игру:",
-        reply_markup=markup
-    )
+#     bot.send_message(
+#         message.chat.id,
+#         f"Привет, {message.from_user.first_name}! Выбери игру:",
+#         reply_markup=markup
+#     )
 @bot.message_handler(commands=['game1'])
 def start_game1(message):
     bot_guesses(message)
@@ -511,8 +510,9 @@ def statham(message):
   bot.send_message(message.chat.id, f"Задумайся ~~~ \n {citatca['quote']} \n {citatca['signature']}")
 @bot.message_handler(func=lambda message: message.text == "⚙️ Статистика")
 def static(message):
-  citatca = get_total_q(message.from_user.id)
-  bot.send_message(message.chat.id, f"Всего ты просмотрел \n {citatca} цитат, это на {citatca} больше чем 0 )")
+    citatca = get_total_q(message.from_user.id)
+    count = citatca[0] if citatca else 0
+    bot.send_message(message.chat.id, f"Всего ты просмотрел {count} цитат")
 @bot.message_handler(func=lambda message: message.text == "🎱 Магический шар")
 def taro_for_scam(message):
   markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -582,11 +582,47 @@ def send_breath_practice(message):
             "Практики пока не загружены. Используй /fill_practices"
         )
 # Запуск через веб-сервер
+@app.route('/')
+def home():
+    return "Bot is running on Railway! 🚂"
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    return 'OK'
+
+def setup_webhook():
+    """Настройка вебхука при запуске"""
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+        bot.set_webhook(url=WEBHOOK_URL)
+        print(f"Webhook установлен на {WEBHOOK_URL}")
+    except Exception as e:
+        print(f"Ошибка установки webhook: {e}")
+
+# ========== ЗАПУСК ==========
 if __name__ == '__main__':
-    # Запускаем поллинг бота в отдельном потоке
-    import threading
-    threading.Thread(target=bot.polling, kwargs={'none_stop': True}).start()
+    # ЕСЛИ на сервере (Railway) - используем вебхуки
+    # ЕСЛИ локально - используем polling
     
-    # Запускаем Flask сервер
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    if IS_PRODUCTION and WEBHOOK_URL.startswith('https://'):
+        print("Запуск в режиме PRODUCTION с вебхуками")
+        setup_webhook()
+        
+        # Запускаем Flask сервер
+        port = int(os.getenv('PORT', 5000))
+        app.run(host='0.0.0.0', port=port)
+    
+    else:
+        print("Запуск в режиме DEVELOPMENT с polling")
+        # Удаляем вебхук если был
+        bot.remove_webhook()
+        time.sleep(1)
+        
+        # Запускаем polling
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
