@@ -1,7 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt"
-startCommand = "python bot.py"
-
-[deploy]
+nixpacksPackages = ["python3", "pip"]
+installCommand = "pip install -r requirements.txt"
+buildCommand = ""
 startCommand = "python bot.py"
