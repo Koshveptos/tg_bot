@@ -12,12 +12,20 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Берем токен из переменных окружения
-BOT_TOKEN = os.getenv('1458726905:AAGdb2BxeoFjQanpbWee0jn0z2SlVFHdH14')  # для локального теста можно временно вписать
+BOT_TOKEN = os.getenv('BOT_TOKEN')  # для локального теста можно временно вписать
+if not BOT_TOKEN:
+    print("❌ ВНИМАНИЕ: BOT_TOKEN не установлен!")
+    # Для теста можно использовать dummy токен, но бот не будет работать
+    BOT_TOKEN = "dummy_token_12345"  # Только для отладки
+    print("⚠️  Используется dummy токен для отладки")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Настройки для Railway
 WEBHOOK_URL = os.getenv('RAILWAY_STATIC_URL', '') + '/webhook'
-IS_PRODUCTION = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
+# Проверяем по-другому, так как Railway может не устанавливать RAILWAY_ENVIRONMENT
+IS_PRODUCTION = bool(os.getenv('RAILWAY_STATIC_URL'))
+# ИЛИ еще лучше:
+IS_PRODUCTION = bool(os.getenv('BOT_TOKEN')) and bool(os.getenv('RAILWAY_STATIC_URL'))
 
 
 url = 'https://absurdopedia.net/wiki/Абсурдоцитатник:Цитаты_Джейсона_Стетхема'
